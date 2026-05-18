@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+.venv-oasis/
+env/
+
+# Node
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+
+# Local simulation data
+.oasis_local/
+*.db
+*.sqlite3
+
+# Logs
+log/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Junie
+.junie/
+
+# Temp
+*.tmp
+*.bak

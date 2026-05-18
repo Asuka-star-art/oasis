@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OASIS 舆情分析平台</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    /* ═══════════════════════════════════════════
+       OASIS · 粒子力导向网络可视化主题
+       ═══════════════════════════════════════════ */
+    :root {
+      --bg-deep: #020408;
+      --bg: #050810;
+      --panel: rgba(8, 14, 28, 0.85);
+      --panel-solid: #080c18;
+      --border: rgba(56, 189, 248, 0.12);
+      --border-glow: rgba(56, 189, 248, 0.4);
+      --text: #e2e8f0;
+      --text-bright: #f8fafc;
+      --muted: #64748b;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --accent3: #c084fc;
+      --danger: #fb7185;
+      --warn: #fbbf24;
+      --ok: #34d399;
+      --stance-pro: #fb7185;
+      --stance-neutral: #94a3b8;
+      --stance-anti: #34d399;
+      --glass-blur: 20px;
+      --radius: 16px;
+      --radius-sm: 12px;
+      --shadow-3d:
+        0 4px 6px rgba(0,0,0,0.4),
+        0 12px 24px rgba(0,0,0,0.3),
+        0 24px 48px rgba(0,0,0,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      --shadow-glow: 0 0 40px rgba(56,189,248,0.12), 0 0 80px rgba(56,189,248,0.06);
+      --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-deep);
+      color: var(--text);
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    /* ── 全局光晕背景 ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80vw 60vh at 20% 30%, rgba(56,189,248,0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 60vw 50vh at 80% 70%, rgba(129,140,248,0.06) 0%, transparent 50%),
+        radial-gradient(ellipse 40vw 40vh at 50% 50%, rgba(192,132,252,0.04) 0%, transparent 40%);
+      z-index: 0;
+      pointer-events: none;
+      animation: ambientDrift 15s ease-in-out infinite alternate;
+    }
+    @keyframes ambientDrift {
+      0% { transform: translate(0, 0) rotate(0deg); opacity: 0.8; }
+      100% { transform: translate(2vw, 1vh) rotate(2deg); opacity: 1; }
+    }
+
+    /* ── 顶部导航 ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: rgba(2, 4, 8, 0.85);
+      backdrop-filter: blur(var(--glass-blur)) saturate(1.5);
+      border-bottom: 1px solid var(--border);
+    }
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--accent2), var(--accent3), transparent);
+      opacity: 0.6;
+      animation: scanline 3s ease-in-out infinite;
+    }
+    @keyframes scanline {
+      0%, 100% { opacity: 0.3; transform: translateX(-100%); }
+      50% { opacity: 0.8; transform: translateX(100%); }
+    }
+    .brand {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.1em;
+      background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-transform: uppercase;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 11px;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .meta span {
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(56,189,248,0.06);
+      border: 1px solid var(--border);
+    }
+    .status-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ok);
+      margin-right: 6px;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(52,211,153,0.5); }
+      50% { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+    }
+
+    /* ── 双栏布局 ── */
+    .layout {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      min-height: calc(100vh - 56px);
+      gap: 0;
+    }
+    .sidebar {
+      padding: 16px;
+      overflow-y: auto;
+      max-height: calc(100vh - 56px);
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56,189,248,0.15) transparent;
+      border-right: 1px solid var(--border);
+    }
+    .sidebar::-webkit-scrollbar { width: 3px; }
+    .sidebar::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.2); border-radius: 3px; }
+    .main {
+      padding: 16px;
+      overflow-y: auto;
+      max-height: calc(100vh - 56px);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── 区域标题 ── */
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 10px;
+      padding-left: 10px;
+      position: relative;
+    }
+    .section-title::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 12px;
+      border-radius: 3px;
+      background: linear-gradient(180deg, var(--accent), var(--accent2));
+    }
+
+    /* ── 毛玻璃卡片 ── */
+    .card {
+      background: var(--panel);
+      backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow-3d);
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: var(--radius);
+      background: linear-gradient(135deg, rgba(56,189,248,0.04) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-3d), var(--shadow-glow);
+      border-color: var(--border-glow);
+    }
+
+    /* ── 事件列表 ── */
+    .event-list { display: grid; gap: 6px; }
+    .event-item {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: rgba(8, 14, 28, 0.6);
+      backdrop-filter: blur(8px);
+      cursor: pointer;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .event-item::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: transparent;
+      border-radius: 0 3px 3px 0;
+      transition: background var(--transition);
+    }
+    .event-item:hover {
+      background: rgba(56,189,248,0.06);
+      border-color: rgba(56,189,248,0.25);
+      transform: translateX(3px);
+    }
+    .event-item.active {
+      border-color: var(--accent);
+      background: rgba(56,189,248,0.1);
+      box-shadow: 0 0 30px rgba(56,189,248,0.15), inset 0 0 30px rgba(56,189,248,0.03);
+    }
+    .event-item.active::after {
+      background: linear-gradient(180deg, var(--accent), var(--accent2));
+    }
+    .event-date { color: var(--muted); font-size: 10px; font-weight: 500; }
+    .event-title-sm { font-size: 12px; margin-top: 2px; color: var(--text-bright); font-weight: 500; }
+    .tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+    .tag {
+      font-size: 9px;
+      color: var(--accent);
+      border: 1px solid rgba(56,189,248,0.2);
+      border-radius: 999px;
+      padding: 1px 6px;
+      background: rgba(56,189,248,0.05);
+    }
+
+    /* ── 表单控件 ── */
+    label {
+      display: block;
+      margin: 10px 0 4px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+    }
+    input, textarea, select {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: rgba(4, 8, 16, 0.8);
+      color: var(--text);
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 12px;
+      transition: all var(--transition);
+      outline: none;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.1), 0 0 20px rgba(56,189,248,0.08);
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2364748b' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    /* ── 按钮 ── */
+    button {
+      width: 100%;
+      border-radius: var(--radius-sm);
+      border: 1px solid;
+      padding: 10px 14px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn {
+      background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(129,140,248,0.12));
+      border-color: rgba(56,189,248,0.35);
+      color: var(--accent);
+      margin-top: 12px;
+    }
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(56,189,248,0.25), 0 0 40px rgba(56,189,248,0.08);
+      border-color: var(--accent);
+    }
+    .btn.secondary {
+      background: rgba(255,255,255,0.02);
+      border-color: var(--border);
+      color: var(--muted);
+    }
+    .btn.secondary:hover {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.12);
+      color: var(--text);
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+    /* ═══════════════════════════════════════════
+       网络可视化核心区域
+       ═══════════════════════════════════════════ */
+    .viz-container {
+      position: relative;
+      background: var(--panel);
+      backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-3d);
+      min-height: 520px;
+    }
+    .viz-container::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 40%, rgba(56,189,248,0.03) 0%, transparent 40%),
+        radial-gradient(circle at 70% 60%, rgba(129,140,248,0.03) 0%, transparent 40%);
+      pointer-events: none;
+    }
+
+    #networkCanvas {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+    }
+
+    /* ── 网络图覆盖层 ── */
+    .viz-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 16px;
+    }
+
+    /* ── 事件信息卡片 ── */
+    .event-info {
+      background: rgba(4, 8, 16, 0.9);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      max-width: 380px;
+      pointer-events: auto;
+      animation: slideIn 0.5s ease-out;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .event-info h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .event-info p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .event-meta-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .event-meta-bar span {
+      font-size: 10px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(56,189,248,0.08);
+      border: 1px solid rgba(56,189,248,0.15);
+      color: var(--accent);
+    }
+
+    /* ── 实时指标环 ── */
+    .metrics-ring {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .metric-node {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(4, 8, 16, 0.95);
+      backdrop-filter: blur(12px);
+      border: 2px solid;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      animation: nodeFloat 3s ease-in-out infinite;
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .metric-node:nth-child(1) { animation-delay: 0s; border-color: var(--stance-pro); box-shadow: 0 0 20px rgba(251,113,133,0.2); }
+    .metric-node:nth-child(2) { animation-delay: 0.5s; border-color: var(--stance-neutral); box-shadow: 0 0 20px rgba(148,163,184,0.15); }
+    .metric-node:nth-child(3) { animation-delay: 1s; border-color: var(--stance-anti); box-shadow: 0 0 20px rgba(52,211,153,0.2); }
+    .metric-node:nth-child(4) { animation-delay: 1.5s; border-color: var(--accent); box-shadow: 0 0 20px rgba(56,189,248,0.2); }
+    @keyframes nodeFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .metric-node:hover {
+      transform: scale(1.1);
+      z-index: 10;
+    }
+    .metric-node .value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+    .metric-node .label {
+      font-size: 8px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── 底部时间轴 ── */
+    .timeline-bar {
+      background: rgba(4, 8, 16, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      pointer-events: auto;
+    }
+    .timeline-track {
+      position: relative;
+      height: 4px;
+      background: rgba(56,189,248,0.1);
+      border-radius: 2px;
+      margin: 8px 0;
+    }
+    .timeline-progress {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      box-shadow: 0 0 10px rgba(56,189,248,0.5);
+      transition: width 0.5s ease;
+    }
+    .timeline-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+    }
+    .timeline-current {
+      position: absolute;
+      top: -6px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 3px solid var(--bg-deep);
+      box-shadow: 0 0 15px rgba(56,189,248,0.6);
+      transform: translateX(-50%);
+      transition: left 0.5s ease;
+    }
+
+    /* ── 图例 ── */
+    .legend {
+      position: absolute;
+      left: 16px;
+      bottom: 80px;
+      background: rgba(4, 8, 16, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      pointer-events: auto;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .legend-item:last-child { margin-bottom: 0; }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .legend-dot.pro { background: var(--stance-pro); box-shadow: 0 0 8px var(--stance-pro); }
+    .legend-dot.neutral { background: var(--stance-neutral); box-shadow: 0 0 8px var(--stance-neutral); }
+    .legend-dot.anti { background: var(--stance-anti); box-shadow: 0 0 8px var(--stance-anti); }
+    .legend-dot.media { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+    /* ── 系统日志 ── */
+    .log-panel {
+      background: rgba(4, 8, 16, 0.95);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px;
+      max-height: 120px;
+      overflow: auto;
+      font: 10px/1.7 "JetBrains Mono", "Fira Code", Consolas, monospace;
+      color: #7dd3fc;
+    }
+    .log-panel div { animation: logFade 0.3s ease-out; }
+    @keyframes logFade {
+      from { opacity: 0; transform: translateY(-3px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── 响应式 ── */
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 260px minmax(0, 1fr); }
+      .metrics-ring { right: 10px; }
+      .metric-node { width: 52px; height: 52px; }
+      .metric-node .value { font-size: 11px; }
+    }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { max-height: none; border-right: 0; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">◈ OASIS 舆情分析平台</div>
+    <div class="meta">
+      <span id="apiMode">API: --</span>
+      <span id="apiStatus"><span class="status-dot"></span>状态: 检查中</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="section-title">研究事件库</div>
+      <div class="event-list card" id="eventList"></div>
+
+      <div class="section-title">仿真参数</div>
+      <div class="card">
+        <label for="modelSelect">本地模型</label>
+        <select id="modelSelect"></select>
+
+        <div class="grid-2">
+          <div>
+            <label for="agentCount">Agent 数量</label>
+            <input id="agentCount" type="number" value="200" min="50" max="500" step="50">
+          </div>
+          <div>
+            <label for="steps">时间步</label>
+            <input id="steps" type="number" value="20" min="5" max="50" step="5">
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div>
+            <label for="activationProb">激活概率</label>
+            <input id="activationProb" type="number" value="0.3" min="0.01" max="1" step="0.01">
+          </div>
+          <div>
+            <label for="polarizationThreshold">极化阈值</label>
+            <input id="polarizationThreshold" type="number" value="0.6" min="0.1" max="1" step="0.05">
+          </div>
+        </div>
+
+        <label for="recAlgorithm">推荐算法</label>
+        <select id="recAlgorithm">
+          <option value="mixed">mixed</option>
+          <option value="interest">interest</option>
+          <option value="hot_score">hot_score</option>
+        </select>
+
+        <button class="btn" id="runSelectedBtn">▶ 启动网络仿真</button>
+      </div>
+
+      <div class="section-title">API 配置</div>
+      <div class="card">
+        <label for="apiBaseInput">本地 API 地址</label>
+        <input id="apiBaseInput" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000">
+        <button class="btn secondary" id="saveApiBtn">保存 API 地址</button>
+      </div>
+
+      <div class="section-title">系统日志</div>
+      <div class="log-panel" id="logBox"></div>
+    </aside>
+
+    <main class="main">
+      <!-- 网络可视化区域 -->
+      <div class="viz-container" id="vizContainer">
+        <canvas id="networkCanvas"></canvas>
+
+        <div class="viz-overlay">
+          <!-- 事件信息 -->
+          <div class="event-info" id="eventInfo">
+            <h2 id="heroTitle">加载中...</h2>
+            <p id="heroDesc">正在获取事件数据</p>
+            <div class="event-meta-bar" id="heroMeta"></div>
+          </div>
+
+          <!-- 图例 -->
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot pro"></div>支持立场</div>
+            <div class="legend-item"><div class="legend-dot neutral"></div>中立立场</div>
+            <div class="legend-item"><div class="legend-dot anti"></div>反对立场</div>
+            <div class="legend-item"><div class="legend-dot media"></div>媒体/KOL</div>
+          </div>
+
+          <!-- 实时指标环 -->
+          <div class="metrics-ring">
+            <div class="metric-node" title="支持比例">
+              <span class="value" id="proVal">--</span>
+              <span class="label">支持</span>
+            </div>
+            <div class="metric-node" title="中立比例">
+              <span class="value" id="neutralVal">--</span>
+              <span class="label">中立</span>
+            </div>
+            <div class="metric-node" title="反对比例">
+              <span class="value" id="antiVal">--</span>
+              <span class="label">反对</span>
+            </div>
+            <div class="metric-node" title="极化指数">
+              <span class="value" id="polarVal">--</span>
+              <span class="label">极化</span>
+            </div>
+          </div>
+
+          <!-- 时间轴 -->
+          <div class="timeline-bar">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:11px;color:var(--muted);">仿真进度</span>
+              <span style="font-size:11px;color:var(--accent);" id="stepIndicator">步 0 / 20</span>
+            </div>
+            <div class="timeline-track">
+              <div class="timeline-progress" id="timelineProgress" style="width:0%"></div>
+              <div class="timeline-current" id="timelineCurrent" style="left:0%"></div>
+            </div>
+            <div class="timeline-labels">
+              <span>开始</span>
+              <span id="peakLabel">峰值</span>
+              <span>结束</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 自定义分析 -->
+      <div class="card">
+        <div class="section-title" style="margin-top:0;">自定义舆情分析</div>
+        <div class="grid-2">
+          <input id="customTitle" placeholder="输入事件标题">
+          <input id="sourcePlatform" value="微博 / 新闻评论 / 短视频 / 论坛">
+        </div>
+        <textarea id="customContent" placeholder="输入需要分析的中美伊冲突事件文本、评论摘要或热搜说明..." style="margin-top:8px;"></textarea>
+        <button class="btn secondary" id="runCustomBtn" style="margin-top:10px;">分析自定义文本</button>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /* ═══════════════════════════════════════════
+       粒子力导向网络可视化系统
+       ═══════════════════════════════════════════ */
+
+    // 全局状态
+    const savedApiBase = localStorage.getItem('oasis_api_base');
+    const defaultApiBase = 'http://127.0.0.1:8000';
+
+    const state = {
+      apiBase: savedApiBase || defaultApiBase,
+      events: [],
+      activeEventId: null,
+      models: [],
+      currentResult: null,
+      currentEvent: null,
+      network: null,
+      simulationRunning: false,
+      currentStep: 0,
+      totalSteps: 20
+    };
+
+    // 网络可视化类
+    class NetworkVisualization {
+      constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+        this.nodes = [];
+        this.links = [];
+        this.particles = [];
+        this.width = 0;
+        this.height = 0;
+        this.animationId = null;
+        this.hoveredNode = null;
+        this.selectedNode = null;
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+
+        // 鼠标交互
+        this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        this.canvas.addEventListener('click', (e) => this.onClick(e));
+        this.canvas.addEventListener('mouseleave', () => { this.hoveredNode = null; });
+      }
+
+      resize() {
+        const rect = this.canvas.parentElement.getBoundingClientRect();
+        this.width = rect.width;
+        this.height = rect.height;
+        this.canvas.width = this.width * window.devicePixelRatio;
+        this.canvas.height = this.height * window.devicePixelRatio;
+        this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      }
+
+      // 生成网络数据
+      generateNetwork(eventData, step = 0, maxSteps = 20) {
+        const progress = step / maxSteps;
+        const nodeCount = Math.min(80, 30 + Math.floor(progress * 50));
+
+        this.nodes = [];
+        this.links = [];
+
+        // 中心节点（事件本身）
+        this.nodes.push({
+          id: 'center',
+          x: this.width * 0.35,
+          y: this.height * 0.45,
+          radius: 25,
+          color: '#38bdf8',
+          glow: '#38bdf8',
+          type: 'event',
+          label: eventData?.title?.slice(0, 8) || '事件',
+          mass: 5
+        });
+
+        // 立场分布
+        const basePro = eventData?.baseline_pro || 0.4;
+        const baseAnti = eventData?.baseline_anti || 0.3;
+        const baseNeutral = 1 - basePro - baseAnti;
+
+        // 生成Agent节点
+        const types = [
+          { type: 'media', label: '媒体', color: '#818cf8', proportion: 0.1, influence: 3 },
+          { type: 'kol', label: 'KOL', color: '#c084fc', proportion: 0.15, influence: 2.5 },
+          { type: 'civilian', label: '网民', color: '#94a3b8', proportion: 0.6, influence: 1 },
+          { type: 'scholar', label: '学者', color: '#fbbf24', proportion: 0.15, influence: 2 }
+        ];
+
+        let nodeId = 1;
+        types.forEach(t => {
+          const count = Math.floor(nodeCount * t.proportion);
+          for (let i = 0; i < count; i++) {
+            const stanceRoll = Math.random();
+            let stance, stanceColor;
+            if (stanceRoll < basePro) {
+              stance = 'pro';
+              stanceColor = '#fb7185';
+            } else if (stanceRoll < basePro + baseNeutral) {
+              stance = 'neutral';
+              stanceColor = '#94a3b8';
+            } else {
+              stance = 'anti';
+              stanceColor = '#34d399';
+            }
+
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 80 + Math.random() * 200 * (1 + progress * 0.5);
+
+            this.nodes.push({
+              id: `node-${nodeId++}`,
+              x: this.width * 0.35 + Math.cos(angle) * distance,
+              y: this.height * 0.45 + Math.sin(angle) * distance,
+              radius: 4 + t.influence * 1.5,
+              color: stanceColor,
+              glow: stanceColor,
+              type: t.type,
+              stance: stance,
+              label: t.label,
+              mass: t.influence,
+              vx: 0,
+              vy: 0,
+              activity: Math.random() * progress
+            });
+          }
+        });
+
+        // 生成连接
+        this.nodes.forEach((node, i) => {
+          if (node.id === 'center') return;
+
+          // 连接到中心
+          this.links.push({
+            source: node,
+            target: this.nodes[0],
+            strength: 0.3 + node.mass * 0.1,
+            opacity: 0.1 + node.activity * 0.2
+          });
+
+          // 随机连接到附近节点
+          const nearby = this.nodes.filter((n, j) =>
+            j !== i && j !== 0 && Math.random() < 0.15 * progress
+          );
+          nearby.slice(0, 3).forEach(near => {
+            this.links.push({
+              source: node,
+              target: near,
+              strength: 0.1,
+              opacity: 0.05
+            });
+          });
+        });
+
+        // 生成传播粒子
+        this.particles = [];
+        for (let i = 0; i < 20 * progress; i++) {
+          this.spawnParticle();
+        }
+      }
+
+      spawnParticle() {
+        if (this.links.length === 0) return;
+        const link = this.links[Math.floor(Math.random() * this.links.length)];
+        this.particles.push({
+          x: link.source.x,
+          y: link.source.y,
+          targetX: link.target.x,
+          targetY: link.target.y,
+          progress: 0,
+          speed: 0.01 + Math.random() * 0.02,
+          color: link.target.color,
+          size: 2 + Math.random() * 2
+        });
+      }
+
+      update() {
+        // 力导向模拟
+        const centerX = this.width * 0.35;
+        const centerY = this.height * 0.45;
+
+        this.nodes.forEach(node => {
+          if (node.id === 'center') return;
+
+          // 向中心的引力
+          const dx = centerX - node.x;
+          const dy = centerY - node.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const force = 0.0005 * dist;
+          node.vx += dx / dist * force;
+          node.vy += dy / dist * force;
+
+          // 节点间斥力
+          this.nodes.forEach(other => {
+            if (other === node) return;
+            const odx = node.x - other.x;
+            const ody = node.y - other.y;
+            const odist = Math.sqrt(odx * odx + ody * ody);
+            if (odist < 60) {
+              const repel = 0.5 / (odist + 1);
+              node.vx += odx / odist * repel;
+              node.vy += ody / odist * repel;
+            }
+          });
+
+          // 阻尼
+          node.vx *= 0.95;
+          node.vy *= 0.95;
+
+          // 更新位置
+          node.x += node.vx;
+          node.y += node.vy;
+
+          // 边界限制
+          node.x = Math.max(50, Math.min(this.width - 150, node.x));
+          node.y = Math.max(50, Math.min(this.height - 100, node.y));
+        });
+
+        // 更新粒子
+        this.particles = this.particles.filter(p => {
+          p.progress += p.speed;
+          p.x = p.x + (p.targetX - p.x) * p.speed;
+          p.y = p.y + (p.targetY - p.y) * p.speed;
+          return p.progress < 1;
+        });
+
+        // 随机生成新粒子
+        if (Math.random() < 0.1 && this.particles.length < 50) {
+          this.spawnParticle();
+        }
+      }
+
+      draw() {
+        this.ctx.clearRect(0, 0, this.width, this.height);
+
+        // 绘制连线
+        this.links.forEach(link => {
+          this.ctx.beginPath();
+          this.ctx.moveTo(link.source.x, link.source.y);
+          this.ctx.lineTo(link.target.x, link.target.y);
+          this.ctx.strokeStyle = `rgba(56,189,248,${link.opacity})`;
+          this.ctx.lineWidth = 0.5;
+          this.ctx.stroke();
+        });
+
+        // 绘制粒子
+        this.particles.forEach(p => {
+          this.ctx.beginPath();
+          this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          this.ctx.fillStyle = p.color;
+          this.ctx.shadowColor = p.color;
+          this.ctx.shadowBlur = 10;
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+        });
+
+        // 绘制节点
+        this.nodes.forEach(node => {
+          // 发光效果
+          const gradient = this.ctx.createRadialGradient(
+            node.x, node.y, 0,
+            node.x, node.y, node.radius * 3
+          );
+          gradient.addColorStop(0, node.glow + '40');
+          gradient.addColorStop(1, 'transparent');
+          this.ctx.beginPath();
+          this.ctx.arc(node.x, node.y, node.radius * 3, 0, Math.PI * 2);
+          this.ctx.fillStyle = gradient;
+          this.ctx.fill();
+
+          // 节点本体
+          this.ctx.beginPath();
+          this.ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+          this.ctx.fillStyle = node.color;
+          this.ctx.shadowColor = node.color;
+          this.ctx.shadowBlur = node.id === 'center' ? 30 : 15;
+          this.ctx.fill();
+          this.ctx.shadowBlur = 0;
+
+          // 中心高亮
+          if (node.id === 'center') {
+            this.ctx.beginPath();
+            this.ctx.arc(node.x, node.y, node.radius * 0.6, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(255,255,255,0.3)';
+            this.ctx.fill();
+          }
+
+          // 标签
+          if (node.id === 'center' || this.hoveredNode === node) {
+            this.ctx.font = node.id === 'center' ? 'bold 12px sans-serif' : '10px sans-serif';
+            this.ctx.fillStyle = '#e2e8f0';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(node.label, node.x, node.y + node.radius + 15);
+          }
+        });
+      }
+
+      animate() {
+        this.update();
+        this.draw();
+        this.animationId = requestAnimationFrame(() => this.animate());
+      }
+
+      start() {
+        if (!this.animationId) this.animate();
+      }
+
+      stop() {
+        if (this.animationId) {
+          cancelAnimationFrame(this.animationId);
+          this.animationId = null;
+        }
+      }
+
+      onMouseMove(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * window.devicePixelRatio;
+        const y = (e.clientY - rect.top) * window.devicePixelRatio;
+
+        this.hoveredNode = null;
+        this.nodes.forEach(node => {
+          const dx = x - node.x;
+          const dy = y - node.y;
+          if (Math.sqrt(dx * dx + dy * dy) < node.radius * 2) {
+            this.hoveredNode = node;
+          }
+        });
+        this.canvas.style.cursor = this.hoveredNode ? 'pointer' : 'default';
+      }
+
+      onClick(e) {
+        if (this.hoveredNode) {
+          this.selectedNode = this.hoveredNode;
+          log(`选中节点: ${this.selectedNode.label} (${this.selectedNode.stance || 'event'})`);
+        }
+      }
+    }
+
+    // 初始化网络可视化
+    state.network = new NetworkVisualization('networkCanvas');
+    state.network.start();
+
+    // 工具函数
+    function log(message) {
+      const box = document.getElementById('logBox');
+      const line = document.createElement('div');
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      box.prepend(line);
+      while (box.children.length > 20) box.removeChild(box.lastChild);
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(`${state.apiBase}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options
+      });
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const rawText = await response.text();
+        throw new Error(`接口返回非 JSON: ${rawText.slice(0, 80)}`);
+      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || '请求失败');
+      return data;
+    }
+
+    function applyApiBase() {
+      state.apiBase = document.getElementById('apiBaseInput').value.trim().replace(/\/$/, '') || defaultApiBase;
+      localStorage.setItem('oasis_api_base', state.apiBase);
+      log(`API 地址: ${state.apiBase}`);
+    }
+
+    function fmt(value, digits = 2) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return '--';
+      return Number(value).toFixed(digits);
+    }
+
+    function renderEvents() {
+      const container = document.getElementById('eventList');
+      container.innerHTML = state.events.map(event => `
+        <div class="event-item ${event.id === state.activeEventId ? 'active' : ''}" data-id="${event.id}">
+          <div class="event-date">${event.date}</div>
+          <div class="event-title-sm">${event.title}</div>
+          <div class="tags">${event.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>
+        </div>
+      `).join('');
+
+      container.querySelectorAll('.event-item').forEach(el => {
+        el.addEventListener('click', () => {
+          state.activeEventId = el.dataset.id;
+          state.currentEvent = state.events.find(item => item.id === state.activeEventId);
+          renderEvents();
+          renderEventInfo(state.currentEvent);
+          state.network.generateNetwork(state.currentEvent);
+          updateMetrics(state.currentEvent);
+        });
+      });
+    }
+
+    function renderEventInfo(event) {
+      if (!event) return;
+      document.getElementById('heroTitle').textContent = event.title;
+      document.getElementById('heroDesc').textContent = event.description;
+      document.getElementById('heroMeta').innerHTML = `
+        <span>${event.date}</span>
+        <span>强度 ${fmt(event.intensity, 2)}</span>
+        <span>${event.tags.slice(0, 2).join(' · ')}</span>
+      `;
+    }
+
+    function updateMetrics(eventOrResult) {
+      if (!eventOrResult) return;
+
+      let pro, neutral, anti, polar;
+
+      if (eventOrResult.stance_distribution) {
+        // 来自仿真结果
+        pro = eventOrResult.stance_distribution.pro * 100;
+        neutral = eventOrResult.stance_distribution.neutral * 100;
+        anti = eventOrResult.stance_distribution.anti * 100;
+        polar = eventOrResult.final_polarization_index * 100;
+      } else {
+        // 来自事件基础数据
+        pro = (eventOrResult.baseline_pro || 0.4) * 100;
+        anti = (eventOrResult.baseline_anti || 0.3) * 100;
+        neutral = 100 - pro - anti;
+        polar = eventOrResult.intensity * 70;
+      }
+
+      document.getElementById('proVal').textContent = fmt(pro, 0) + '%';
+      document.getElementById('neutralVal').textContent = fmt(neutral, 0) + '%';
+      document.getElementById('antiVal').textContent = fmt(anti, 0) + '%';
+      document.getElementById('polarVal').textContent = fmt(polar, 0);
+    }
+
+    function updateTimeline(step, total) {
+      const progress = (step / total) * 100;
+      document.getElementById('timelineProgress').style.width = `${progress}%`;
+      document.getElementById('timelineCurrent').style.left = `${progress}%`;
+      document.getElementById('stepIndicator').textContent = `步 ${step} / ${total}`;
+    }
+
+    async function animateSimulation(simulationId) {
+      state.simulationRunning = true;
+      state.currentStep = 0;
+      state.totalSteps = Number(document.getElementById('steps').value);
+
+      log('启动网络演化动画...');
+
+      while (state.simulationRunning) {
+        const data = await api(`/simulate/${simulationId}`);
+
+        // 更新网络可视化
+        if (data.current_metrics) {
+          state.currentStep = Math.floor((data.progress / 100) * state.totalSteps);
+          state.network.generateNetwork(state.currentEvent, state.currentStep, state.totalSteps);
+          updateTimeline(state.currentStep, state.totalSteps);
+
+          // 更新指标
+          const m = data.current_metrics;
+          document.getElementById('proVal').textContent = fmt((m.stance_distribution?.pro || 0.4) * 100, 0) + '%';
+          document.getElementById('neutralVal').textContent = fmt((m.stance_distribution?.neutral || 0.3) * 100, 0) + '%';
+          document.getElementById('antiVal').textContent = fmt((m.stance_distribution?.anti || 0.3) * 100, 0) + '%';
+          document.getElementById('polarVal').textContent = fmt(m.polarization_index * 100, 0);
+        }
+
+        log(`进度 ${data.progress}% · ${data.status}`);
+
+        if (data.status === 'completed') {
+          state.currentResult = data.result;
+          updateMetrics(data.result);
+          log('仿真完成');
+          state.simulationRunning = false;
+          return data.result;
+        }
+        if (data.status === 'failed') {
+          log(`失败: ${data.error}`);
+          state.simulationRunning = false;
+          throw new Error(data.error);
+        }
+
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+
+    async function runSelectedEvent() {
+      if (!state.activeEventId) return;
+      const btn = document.getElementById('runSelectedBtn');
+      btn.disabled = true;
+
+      try {
+        const payload = {
+          event_id: state.activeEventId,
+          agent_count: Number(document.getElementById('agentCount').value),
+          activation_prob: Number(document.getElementById('activationProb').value),
+          steps: Number(document.getElementById('steps').value),
+          polarization_threshold: Number(document.getElementById('polarizationThreshold').value),
+          rec_algorithm: document.getElementById('recAlgorithm').value,
+          llm_model: document.getElementById('modelSelect').value,
+          source_platform: document.getElementById('sourcePlatform').value
+        };
+
+        log(`提交: ${state.currentEvent.title}`);
+        const task = await api('/simulate', { method: 'POST', body: JSON.stringify(payload) });
+        await animateSimulation(task.simulation_id);
+      } catch (e) {
+        log(`错误: ${e.message}`);
+        alert(e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function runCustomText() {
+      const btn = document.getElementById('runCustomBtn');
+      btn.disabled = true;
+
+      try {
+        const payload = {
+          title: document.getElementById('customTitle').value.trim(),
+          content: document.getElementById('customContent').value.trim(),
+          source_platform: document.getElementById('sourcePlatform').value,
+          llm_model: document.getElementById('modelSelect').value,
+          rec_algorithm: document.getElementById('recAlgorithm').value
+        };
+        if (!payload.title || !payload.content) {
+          throw new Error('请填写标题和内容');
+        }
+
+        log('分析自定义文本...');
+        const result = await api('/analysis/text', { method: 'POST', body: JSON.stringify(payload) });
+
+        state.currentEvent = {
+          id: 'custom',
+          date: new Date().toISOString().slice(0, 10),
+          title: payload.title,
+          description: payload.content,
+          intensity: result.final_polarization_index || 0.6,
+          baseline_pro: result.stance_distribution?.pro || 0.4,
+          baseline_anti: result.stance_distribution?.anti || 0.3,
+          tags: ['自定义']
+        };
+
+        renderEventInfo(state.currentEvent);
+        state.network.generateNetwork(state.currentEvent, 10, 20);
+        updateMetrics(result);
+        log('分析完成');
+      } catch (e) {
+        log(`错误: ${e.message}`);
+        alert(e.message);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function loadHealth() {
+      try {
+        const data = await api('/health');
+        document.getElementById('apiMode').textContent = `API: ${data.api_style}`;
+        document.getElementById('apiStatus').innerHTML = `<span class="status-dot"></span>${data.cloud_api_configured ? '本地就绪' : '未配置'}`;
+      } catch {
+        document.getElementById('apiStatus').innerHTML = `<span class="status-dot" style="background:var(--danger)"></span>不可用`;
+      }
+    }
+
+    async function loadModels() {
+      const data = await api('/models');
+      state.models = data.models || [];
+      document.getElementById('modelSelect').innerHTML = state.models.map(m =>
+        `<option value="${m.id}">${m.label || m.id}</option>`
+      ).join('');
+    }
+
+    async function loadEvents() {
+      const data = await api('/events');
+      state.events = data.events || [];
+      state.activeEventId = state.events[0]?.id || null;
+      state.currentEvent = state.events[0] || null;
+      renderEvents();
+      renderEventInfo(state.currentEvent);
+      state.network.generateNetwork(state.currentEvent);
+      updateMetrics(state.currentEvent);
+    }
+
+    async function boot() {
+      document.getElementById('apiBaseInput').value = state.apiBase;
+      document.getElementById('saveApiBtn').addEventListener('click', () => {
+        applyApiBase();
+        loadHealth();
+        loadModels();
+        loadEvents();
+      });
+      document.getElementById('runSelectedBtn').addEventListener('click', runSelectedEvent);
+      document.getElementById('runCustomBtn').addEventListener('click', runCustomText);
+
+      await loadHealth();
+      await loadModels();
+      await loadEvents();
+      log('系统就绪');
+    }
+
+    boot().catch(e => {
+      log(`启动失败: ${e.message}`);
+      alert(e.message);
+    });
+  </script>
+</body>
+</html>
