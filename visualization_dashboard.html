@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OASIS 舆情分析数据可视化仪表板</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: linear-gradient(135deg, #0a0e1a 0%, #1a1f3a 100%);
+      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .header {
+      text-align: center;
+      padding: 30px 0;
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      font-size: 32px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 10px;
+    }
+    .header p {
+      color: #7c8db5;
+      font-size: 14px;
+    }
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+    .chart-container {
+      background: rgba(12, 18, 36, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .chart-container:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(56, 189, 248, 0.15);
+    }
+    .chart-container.full-width {
+      grid-column: 1 / -1;
+    }
+    .chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-bottom: 15px;
+      padding-left: 12px;
+      border-left: 4px solid #38bdf8;
+    }
+    .chart {
+      width: 100%;
+      height: 350px;
+    }
+    .chart.large {
+      height: 450px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 30px;
+      max-width: 1600px;
+      margin: 0 auto 30px;
+    }
+    .stat-card {
+      background: rgba(12, 18, 36, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.15);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 0 20px rgba(56, 189, 248, 0.1);
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #38bdf8, #818cf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #7c8db5;
+      margin-top: 5px;
+    }
+    @media (max-width: 1200px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>OASIS 舆情分析数据可视化仪表板</h1>
+    <p>2026年2月27日 - 4月8日 中美伊冲突舆情分析 | 基于多智能体仿真与推荐算法研究</p>
+  </div>
+
+  <!-- 关键指标卡片 -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">8</div>
+      <div class="stat-label">分析事件数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">0.91</div>
+      <div class="stat-label">最高事件强度</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">3</div>
+      <div class="stat-label">推荐算法对比</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Agent类型</div>
+    </div>
+  </div>
+
+  <div class="dashboard">
+    <!-- 1. 事件强度时间线 -->
+    <div class="chart-container full-width">
+      <div class="chart-title">事件强度时间演化（2026-02-27 至 2026-04-08）</div>
+      <div id="timelineChart" class="chart large"></div>
+    </div>
+
+    <!-- 2. 立场分布堆叠面积图 -->
+    <div class="chart-container full-width">
+      <div class="chart-title">舆论立场分布演化趋势</div>
+      <div id="stanceAreaChart" class="chart large"></div>
+    </div>
+
+    <!-- 3. 三种推荐算法对比雷达图 -->
+    <div class="chart-container">
+      <div class="chart-title">推荐算法效果对比（雷达图）</div>
+      <div id="radarChart" class="chart"></div>
+    </div>
+
+    <!-- 4. 算法偏差指标对比 -->
+    <div class="chart-container">
+      <div class="chart-title">推荐算法偏差指标对比</div>
+      <div id="algorithmBarChart" class="chart"></div>
+    </div>
+
+    <!-- 5. Agent类型分布饼图 -->
+    <div class="chart-container">
+      <div class="chart-title">Agent类型分布</div>
+      <div id="agentPieChart" class="chart"></div>
+    </div>
+
+    <!-- 6. 事件立场分布对比 -->
+    <div class="chart-container">
+      <div class="chart-title">各事件初始立场分布对比</div>
+      <div id="eventStanceChart" class="chart"></div>
+    </div>
+
+    <!-- 7. 极化指数与失衡度关系 -->
+    <div class="chart-container">
+      <div class="chart-title">事件强度与极化指数关系</div>
+      <div id="scatterChart" class="chart"></div>
+    </div>
+
+    <!-- 8. 仿真时间步演化 -->
+    <div class="chart-container">
+      <div class="chart-title">典型事件仿真演化（步进分析）</div>
+      <div id="simulationChart" class="chart"></div>
+    </div>
+  </div>
+
+  <script>
+    // 事件数据
+    const eventsData = [
+      { date: '2026-02-27', title: '美军对伊实施精确打击', intensity: 0.91, pro: 0.45, anti: 0.25, neutral: 0.30 },
+      { date: '2026-03-03', title: '伊朗官方媒体集中发声', intensity: 0.88, pro: 0.40, anti: 0.30, neutral: 0.30 },
+      { date: '2026-03-08', title: '伊朗宣布暂停相关谈判', intensity: 0.82, pro: 0.38, anti: 0.32, neutral: 0.30 },
+      { date: '2026-03-15', title: '中美外长紧急通话', intensity: 0.53, pro: 0.42, anti: 0.28, neutral: 0.30 },
+      { date: '2026-03-22', title: '国内中东局势热搜爆发', intensity: 0.96, pro: 0.60, anti: 0.18, neutral: 0.22 },
+      { date: '2026-03-30', title: '中国提出三方停火倡议', intensity: 0.62, pro: 0.48, anti: 0.25, neutral: 0.27 },
+      { date: '2026-04-05', title: '美伊达成临时协议', intensity: 0.36, pro: 0.35, anti: 0.32, neutral: 0.33 },
+      { date: '2026-04-08', title: '舆情复盘与总结', intensity: 0.22, pro: 0.33, anti: 0.34, neutral: 0.33 }
+    ];
+
+    // 算法对比数据
+    const algorithmData = {
+      interest: { pro_bias: 0.34, echo_amplify: 0.42, polarization_contribution: 0.65, label: '兴趣推荐' },
+      hot_score: { pro_bias: 0.19, echo_amplify: 0.28, polarization_contribution: 0.45, label: '热度推荐' },
+      mixed: { pro_bias: 0.12, echo_amplify: 0.15, polarization_contribution: 0.28, label: '混合推荐' }
+    };
+
+    // 1. 事件强度时间线
+    const timelineChart = echarts.init(document.getElementById('timelineChart'));
+    timelineChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' },
+        formatter: function(params) {
+          const data = eventsData[params[0].dataIndex];
+          return `<strong>${data.date}</strong><br/>${data.title}<br/>强度: ${data.intensity}`;
+        }
+      },
+      grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: eventsData.map(e => e.date.slice(5)),
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5', rotate: 30 }
+      },
+      yAxis: {
+        type: 'value',
+        name: '事件强度',
+        nameTextStyle: { color: '#7c8db5' },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      series: [{
+        name: '事件强度',
+        type: 'line',
+        data: eventsData.map(e => e.intensity),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 10,
+        lineStyle: {
+          color: '#38bdf8',
+          width: 3,
+          shadowColor: 'rgba(56, 189, 248, 0.5)',
+          shadowBlur: 10
+        },
+        itemStyle: {
+          color: '#38bdf8',
+          borderColor: '#0f172a',
+          borderWidth: 2
+        },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(56, 189, 248, 0.4)' },
+            { offset: 1, color: 'rgba(56, 189, 248, 0.05)' }
+          ])
+        },
+        markPoint: {
+          data: [
+            { type: 'max', name: '最大值', itemStyle: { color: '#fb7185' } },
+            { type: 'min', name: '最小值', itemStyle: { color: '#34d399' } }
+          ]
+        }
+      }]
+    });
+
+    // 2. 立场分布堆叠面积图
+    const stanceAreaChart = echarts.init(document.getElementById('stanceAreaChart'));
+    stanceAreaChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' },
+        axisPointer: { type: 'cross' }
+      },
+      legend: {
+        data: ['支持', '中立', '反对'],
+        textStyle: { color: '#7c8db5' },
+        top: 10
+      },
+      grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: eventsData.map(e => e.date.slice(5)),
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5', rotate: 30 }
+      },
+      yAxis: {
+        type: 'value',
+        name: '比例',
+        nameTextStyle: { color: '#7c8db5' },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5', formatter: '{value}' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      series: [
+        {
+          name: '支持',
+          type: 'line',
+          stack: 'Total',
+          smooth: true,
+          lineStyle: { width: 0 },
+          showSymbol: false,
+          areaStyle: { opacity: 0.8, color: '#fb7185' },
+          emphasis: { focus: 'series' },
+          data: eventsData.map(e => e.pro)
+        },
+        {
+          name: '中立',
+          type: 'line',
+          stack: 'Total',
+          smooth: true,
+          lineStyle: { width: 0 },
+          showSymbol: false,
+          areaStyle: { opacity: 0.8, color: '#94a3b8' },
+          emphasis: { focus: 'series' },
+          data: eventsData.map(e => e.neutral)
+        },
+        {
+          name: '反对',
+          type: 'line',
+          stack: 'Total',
+          smooth: true,
+          lineStyle: { width: 0 },
+          showSymbol: false,
+          areaStyle: { opacity: 0.8, color: '#34d399' },
+          emphasis: { focus: 'series' },
+          data: eventsData.map(e => e.anti)
+        }
+      ]
+    });
+
+    // 3. 推荐算法雷达图
+    const radarChart = echarts.init(document.getElementById('radarChart'));
+    radarChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' }
+      },
+      legend: {
+        data: ['兴趣推荐', '热度推荐', '混合推荐'],
+        textStyle: { color: '#7c8db5' },
+        bottom: 10
+      },
+      radar: {
+        indicator: [
+          { name: '立场偏置', max: 0.4 },
+          { name: '茧房放大', max: 0.5 },
+          { name: '极化贡献', max: 0.7 }
+        ],
+        shape: 'polygon',
+        splitNumber: 4,
+        axisName: { color: '#7c8db5' },
+        splitLine: { lineStyle: { color: '#334155' } },
+        splitArea: {
+          show: true,
+          areaStyle: { color: ['rgba(56, 189, 248, 0.05)', 'rgba(56, 189, 248, 0.1)'] }
+        },
+        axisLine: { lineStyle: { color: '#334155' } }
+      },
+      series: [{
+        name: '算法对比',
+        type: 'radar',
+        data: [
+          {
+            value: [0.34, 0.42, 0.65],
+            name: '兴趣推荐',
+            lineStyle: { color: '#fb7185', width: 2 },
+            areaStyle: { color: 'rgba(251, 113, 133, 0.3)' },
+            itemStyle: { color: '#fb7185' }
+          },
+          {
+            value: [0.19, 0.28, 0.45],
+            name: '热度推荐',
+            lineStyle: { color: '#fbbf24', width: 2 },
+            areaStyle: { color: 'rgba(251, 191, 36, 0.3)' },
+            itemStyle: { color: '#fbbf24' }
+          },
+          {
+            value: [0.12, 0.15, 0.28],
+            name: '混合推荐',
+            lineStyle: { color: '#34d399', width: 2 },
+            areaStyle: { color: 'rgba(52, 211, 153, 0.3)' },
+            itemStyle: { color: '#34d399' }
+          }
+        ]
+      }]
+    });
+
+    // 4. 算法偏差指标柱状图
+    const algorithmBarChart = echarts.init(document.getElementById('algorithmBarChart'));
+    algorithmBarChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' }
+      },
+      legend: {
+        data: ['立场偏置', '茧房放大', '极化贡献'],
+        textStyle: { color: '#7c8db5' },
+        top: 10
+      },
+      grid: { left: '3%', right: '4%', bottom: '10%', top: '15%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: ['兴趣推荐', '热度推荐', '混合推荐'],
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5' }
+      },
+      yAxis: {
+        type: 'value',
+        name: '偏差指数',
+        nameTextStyle: { color: '#7c8db5' },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      series: [
+        {
+          name: '立场偏置',
+          type: 'bar',
+          data: [0.34, 0.19, 0.12],
+          itemStyle: { color: '#fb7185', borderRadius: [4, 4, 0, 0] }
+        },
+        {
+          name: '茧房放大',
+          type: 'bar',
+          data: [0.42, 0.28, 0.15],
+          itemStyle: { color: '#fbbf24', borderRadius: [4, 4, 0, 0] }
+        },
+        {
+          name: '极化贡献',
+          type: 'bar',
+          data: [0.65, 0.45, 0.28],
+          itemStyle: { color: '#38bdf8', borderRadius: [4, 4, 0, 0] }
+        }
+      ]
+    });
+
+    // 5. Agent类型分布饼图
+    const agentPieChart = echarts.init(document.getElementById('agentPieChart'));
+    agentPieChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' },
+        formatter: '{b}: {c}% ({d}%)'
+      },
+      legend: {
+        orient: 'vertical',
+        right: '5%',
+        top: 'center',
+        textStyle: { color: '#7c8db5' }
+      },
+      series: [{
+        name: 'Agent类型',
+        type: 'pie',
+        radius: ['40%', '70%'],
+        center: ['40%', '50%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 8,
+          borderColor: '#0f172a',
+          borderWidth: 2
+        },
+        label: {
+          show: false,
+          position: 'center'
+        },
+        emphasis: {
+          label: {
+            show: true,
+            fontSize: 16,
+            fontWeight: 'bold',
+            color: '#e2e8f0'
+          }
+        },
+        labelLine: { show: false },
+        data: [
+          { value: 8, name: '官方媒体', itemStyle: { color: '#38bdf8' } },
+          { value: 12, name: '意见领袖KOL', itemStyle: { color: '#818cf8' } },
+          { value: 60, name: '普通民众', itemStyle: { color: '#94a3b8' } },
+          { value: 10, name: '学者专家', itemStyle: { color: '#fbbf24' } },
+          { value: 10, name: '平台机构', itemStyle: { color: '#34d399' } }
+        ]
+      }]
+    });
+
+    // 6. 各事件立场分布对比
+    const eventStanceChart = echarts.init(document.getElementById('eventStanceChart'));
+    eventStanceChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' }
+      },
+      legend: {
+        data: ['支持', '中立', '反对'],
+        textStyle: { color: '#7c8db5' },
+        top: 10
+      },
+      grid: { left: '3%', right: '4%', bottom: '15%', top: '15%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: eventsData.map(e => e.date.slice(5)),
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5', rotate: 45, fontSize: 10 }
+      },
+      yAxis: {
+        type: 'value',
+        name: '比例',
+        nameTextStyle: { color: '#7c8db5' },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      series: [
+        {
+          name: '支持',
+          type: 'bar',
+          stack: 'total',
+          data: eventsData.map(e => e.pro),
+          itemStyle: { color: '#fb7185' }
+        },
+        {
+          name: '中立',
+          type: 'bar',
+          stack: 'total',
+          data: eventsData.map(e => e.neutral),
+          itemStyle: { color: '#94a3b8' }
+        },
+        {
+          name: '反对',
+          type: 'bar',
+          stack: 'total',
+          data: eventsData.map(e => e.anti),
+          itemStyle: { color: '#34d399' }
+        }
+      ]
+    });
+
+    // 7. 事件强度与极化指数散点图
+    const scatterChart = echarts.init(document.getElementById('scatterChart'));
+    scatterChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' },
+        formatter: function(params) {
+          return `${params.data[2]}<br/>强度: ${params.data[0]}<br/>支持率: ${params.data[1]}`;
+        }
+      },
+      grid: { left: '3%', right: '8%', bottom: '10%', top: '15%', containLabel: true },
+      xAxis: {
+        type: 'value',
+        name: '事件强度',
+        nameTextStyle: { color: '#7c8db5' },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      yAxis: {
+        type: 'value',
+        name: '支持率',
+        nameTextStyle: { color: '#7c8db5' },
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5' },
+        splitLine: { lineStyle: { color: '#1e293b' } }
+      },
+      series: [{
+        name: '事件',
+        type: 'scatter',
+        symbolSize: function(data) {
+          return data[0] * 30;
+        },
+        data: eventsData.map(e => [e.intensity, e.pro, e.title]),
+        itemStyle: {
+          color: function(params) {
+            const colors = ['#38bdf8', '#818cf8', '#c084fc', '#fbbf24', '#fb7185', '#34d399', '#94a3b8', '#64748b'];
+            return colors[params.dataIndex % colors.length];
+          },
+          shadowBlur: 10,
+          shadowColor: 'rgba(56, 189, 248, 0.5)'
+        }
+      }]
+    });
+
+    // 8. 典型事件仿真演化
+    const simulationChart = echarts.init(document.getElementById('simulationChart'));
+    const steps = Array.from({length: 21}, (_, i) => `步${i}`);
+    const proEvolution = [0.45, 0.46, 0.48, 0.50, 0.52, 0.54, 0.55, 0.56, 0.57, 0.58, 0.58, 0.57, 0.56, 0.55, 0.54, 0.53, 0.52, 0.51, 0.50, 0.49, 0.48];
+    const antiEvolution = [0.25, 0.26, 0.27, 0.28, 0.29, 0.30, 0.31, 0.32, 0.33, 0.34, 0.35, 0.36, 0.37, 0.38, 0.39, 0.40, 0.41, 0.42, 0.43, 0.44, 0.45];
+    const neutralEvolution = proEvolution.map((p, i) => 1 - p - antiEvolution[i]);
+    const polarizationIndex = [0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.72, 0.74, 0.75, 0.76, 0.77, 0.78, 0.79, 0.80, 0.81, 0.82];
+
+    simulationChart.setOption({
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(12, 18, 36, 0.95)',
+        borderColor: '#38bdf8',
+        textStyle: { color: '#e2e8f0' }
+      },
+      legend: {
+        data: ['支持', '中立', '反对', '极化指数'],
+        textStyle: { color: '#7c8db5' },
+        top: 10
+      },
+      grid: { left: '3%', right: '4%', bottom: '10%', top: '15%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: steps,
+        axisLine: { lineStyle: { color: '#334155' } },
+        axisLabel: { color: '#7c8db5', interval: 4 }
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '立场比例',
+          nameTextStyle: { color: '#7c8db5' },
+          axisLine: { lineStyle: { color: '#334155' } },
+          axisLabel: { color: '#7c8db5' },
+          splitLine: { lineStyle: { color: '#1e293b' } }
+        },
+        {
+          type: 'value',
+          name: '极化指数',
+          nameTextStyle: { color: '#7c8db5' },
+          axisLine: { lineStyle: { color: '#334155' } },
+          axisLabel: { color: '#7c8db5' },
+          splitLine: { show: false }
+        }
+      ],
+      series: [
+        {
+          name: '支持',
+          type: 'line',
+          data: proEvolution,
+          smooth: true,
+          lineStyle: { color: '#fb7185', width: 2 },
+          itemStyle: { color: '#fb7185' }
+        },
+        {
+          name: '中立',
+          type: 'line',
+          data: neutralEvolution,
+          smooth: true,
+          lineStyle: { color: '#94a3b8', width: 2 },
+          itemStyle: { color: '#94a3b8' }
+        },
+        {
+          name: '反对',
+          type: 'line',
+          data: antiEvolution,
+          smooth: true,
+          lineStyle: { color: '#34d399', width: 2 },
+          itemStyle: { color: '#34d399' }
+        },
+        {
+          name: '极化指数',
+          type: 'line',
+          yAxisIndex: 1,
+          data: polarizationIndex,
+          smooth: true,
+          lineStyle: { color: '#fbbf24', width: 3, type: 'dashed' },
+          itemStyle: { color: '#fbbf24' }
+        }
+      ]
+    });
+
+    // 响应式处理
+    window.addEventListener('resize', function() {
+      timelineChart.resize();
+      stanceAreaChart.resize();
+      radarChart.resize();
+      algorithmBarChart.resize();
+      agentPieChart.resize();
+      eventStanceChart.resize();
+      scatterChart.resize();
+      simulationChart.resize();
+    });
+  </script>
+</body>
+</html>
